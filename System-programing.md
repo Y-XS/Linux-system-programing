@@ -1,4 +1,4 @@
-# CMD
+# lsCMD
 
 ## dir
 
@@ -141,4 +141,99 @@ yum update sl
 + 自动格式化程序：gg=G
 
 ## 配置
+
+
+
+# GCC
+
+![](imgs/gcc.png)
+
++ -I：指定头文件所在目录位置
+
++ -o：指定输出文件名
+
++ -c：只做预处理、编译、汇编。得到二进制文件
+
++ -g：编译时添加调试语句。主要支持gdb调试
+
++ -Wall：显示所有警告信息
+
++ -D：向程序中“动态”注册宏定义
+
+  ```sh
+  gcc hello.cpp -I ./include -o hello -g -Wall -D HELLO
+  ```
+
+# lib
+
+## 静态库
+
+### 步骤
+
+1. 将 .c 生成 .o 文件
+
+   ```sh
+   gcc -c add.c -o add.o
+   ```
+
+2. 使用 ar 工具制作静态库
+
+   ```sh
+   ar rcs lib[name].a add.o sub.o div.o
+   ```
+
+3. 编译静态库到可执行文件中
+
+   ```sh
+   gcc test.c lib[name].a -o 
+   ```
+
+### Template
+
+![](imgs/static-lib-dir.png)
+
+```sh
+[root@ src] g++ -c add.cpp -o add.o
+[root@ src] g++ -c sub.cpp -o sub.o
+[root@ src] ar rcs libmath.a add.o sub.o
+[root@ src] mv libmath.a *.o ../lib
+[root@ lib] g++ test.cpp ./lib/libmath.a -o test -I ./inc
+```
+
+```c++
+// test.cpp
+#include<iostream>
+#include"math.h"
+using namespace std;
+int main(){
+        int a=9,b=5;
+        cout<<"add("<<a<<","<<b<<") = "<<add(a,b)<<endl;
+        cout<<"sub("<<a<<","<<b<<") = "<<sub(a,b)<<endl;
+        return 0;
+}
+```
+
+```c++
+// math.h
+#ifndef MATH_H
+#define MATH_H
+int add(int,int);
+int sub(int,int);
+#endif
+```
+
+
+
+## 动态库 
+
+```sh
+[root@ src] g++ -c add.cpp -o add.o -fPIC
+[root@ src] g++ -c sub.cpp -o sub.o -fPIC
+[root@ src] g++ -shared -o libmath.so add.o sub.o
+[root@ src] mv libmath.so *.o ../lib
+```
+
+
+
+# gdb
 
