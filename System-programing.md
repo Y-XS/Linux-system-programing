@@ -412,6 +412,68 @@ man man
 man 2 open
 ```
 
+## common
+
+### 文件描述符
+
+| ![](imgs/fd.png) | ![](imgs/fd2.png) |
+| ---------------- | ----------------- |
+
++ PCB进程控制块：本质是结构体
+
++ 成员：文件描述符表
+
++ 文件描述符：0/1/2/3/4.../1023（默认使用表中可用的最小值）
+
+  + 0：STDIN_FILENO
+
+  + 1：STDOUT_FILENO
+
+  + 2：STDERR_FILENO
+
+
+
+### 阻塞 / 非阻塞
+
+> 阻塞/非阻塞：是设备文件、网络文件的属性
+
+产生阻塞的场景。读**设备文件**。读**网络文件**。(读常规文件无阻塞概念)
+
+```c++
+// /dev/tty -- 终端文件
+//设置 /dev/tty 为非阻塞状态（默认阻塞）
+open("/dev/tty",O_RDWR|O_NONBLOCK);
+```
+
+
+
+### strerror
+
+```c++
+#include<string.h>
+#include<errno.h>
+char* strerror(int errno);
+```
+
+### strace
+
+> 命令：输出程序执行过程中的系统调用
+
+### fcntl
+
+![](imgs/fcntl.png)
+
++ 获取文件状态：F_GETFL
++ 设置文件状态：F_SETFL
+
+```c++
+int flags = fcntl(fd,F_GETFL);
+flags |= O_NONBLOCK;
+fcntl(STDIN_FILENO, F_SETFL, flags);
+```
+
+
+
 
 
 ## 文件IO
@@ -445,12 +507,66 @@ int fd = open(src_path,O_RDWR|O_CREAT,0777);
 int close(int fd);
 ```
 
-### strerror
+### read / write
+
+![](imgs/buf.png)
+
+> 预读入缓输出
 
 ```c++
-#include<string.h>
-#include<errno.h>
-char* strerror(int errno);
+#include <unistd.h>
+/**
+args: 
+	fd：文件描述符
+	buf：缓冲区
+	count：字节数（bytes）
+return：
+	n: 读取的字节数
+	0：indicates end of file
+	-1：error & errno. if errno==EAGIN | EWOULDBLOCK则考虑非阻塞时无数据		情况
+**/
+ssize_t read(int fd, void *buf, size_t count);
+//template
+int n = read(fd1,buf,1024);
+```
+
+```c++
+#include <unistd.h>
+/**
+args: 
+	fd：文件描述符
+	buf：缓冲区
+	count：字节数（bytes）
+return：
+	n: 写入的字节数
+	-1：error & errno
+**/
+ssize_t write(int fd, const void *buf, size_t count);
+//template
+write(fd2,buf,n);
+```
+
+
+
+### lseek
+
+> 文件读写使用同一偏移位置
+
+```c++
+/*
+args:
+	fd：文件描述符
+	offset：偏移量
+	whence：起始偏移位置：SEEK_SET/SEEK_CUR/SEEK_END
+return:
+	success：较起始位置偏移量
+	fail：-1 & errno
+application:
+	1.读写使用同一偏移位置
+	2.使用lseek获取拓展文件大小(可用stat()替代)
+	3.使用lseek拓展文件大小(想要真正拓展，必须引起IO操作，可用truncate())
+*/
+off_t lseek(int fd, off_t offset, int whence);
 ```
 
 
