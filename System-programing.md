@@ -414,6 +414,25 @@ man 2 open
 
 ## common
 
+### 基础知识
+
+![](imgs/inode.png)
+
++ inode
+
+  其本质为结构体，存储文件的属性信息。如：权限、类型、大小、时间、用户、盘块位置……也叫作文件属性管理结构，大多数的 inode 都存储在磁盘上。
+  少量常用、近期使用的inode会被缓存到内存中。
+
++ dentry
+
+  **目录项**，其本质依然是结构体，重要成员变量有两个{文件名，inode，...}，而文件内容 (data) 保存在磁盘盘块中。
+
+硬连接&软连接
+
+硬连接：等于创建一个目录项
+
+
+
 ### 文件描述符
 
 | ![](imgs/fd.png) | ![](imgs/fd2.png) |
@@ -445,32 +464,73 @@ man 2 open
 open("/dev/tty",O_RDWR|O_NONBLOCK);
 ```
 
+### func
 
++ strerror
 
-### strerror
+  ```c++
+  #include<string.h>
+  #include<errno.h>
+  char* strerror(int errno);
+  ```
 
-```c++
-#include<string.h>
-#include<errno.h>
-char* strerror(int errno);
-```
++ perror
 
-### strace
+  ```c++
+  void perror(const char* s);
+  perror("perror test");
+  ```
+
++ strace
 
 > 命令：输出程序执行过程中的系统调用
 
-### fcntl
++ fcntl
 
-![](imgs/fcntl.png)
+  ![](imgs/fcntl.png)
 
-+ 获取文件状态：F_GETFL
-+ 设置文件状态：F_SETFL
+  ```c++
+  #include<unistd.h>
+  #include<fcntl.h>
+  /*
+  args:
+  	fd：文件描述符
+  	cmd：操作命令
+  cmd:
+  	F_DUPFD：Find the lowest numbered available file descriptor 				greater than or equal to arg and make it be a copy of fd.
+  	F_GETFL
+  	F_SETFL
+  return:
+  	取决于操作命令
+  */
+  int fcntl(int fd, int cmd, ...arg);
+  ```
 
-```c++
-int flags = fcntl(fd,F_GETFL);
-flags |= O_NONBLOCK;
-fcntl(STDIN_FILENO, F_SETFL, flags);
-```
+  ```c++
+  //template
+  int flags = fcntl(fd,F_GETFL);
+  flags |= O_NONBLOCK;
+  fcntl(STDIN_FILENO, F_SETFL, flags);
+  ```
+
++ dup
+
+  ```c++
+  #include<unistd.h>
+  /*
+  args:
+  	oldfd：原文件描述符
+  	newfd：新文件描述符
+  return:
+  	success：new descriptor
+  	fail：-1 & errno
+  */
+  int dup(int oldfd);
+  // newfd -> oldfd
+  int dup2(int oldfd,int newfd);
+  ```
+
+  
 
 
 
@@ -569,7 +629,140 @@ application:
 off_t lseek(int fd, off_t offset, int whence);
 ```
 
+### stat
 
+```c++
+/*
+args:
+	path：文件路径
+	buf：存放文件属性
+return:
+	success：0
+	fail：-1 & errno
+other：
+	符号穿透：stat会，lstat不会
+*/
+int stat(const char* path,struct stat *buf);
+struct stat{
+    st_size,//获取文件大小
+    st_mode,//获取文件类型
+}
+```
+
+
+
+### link/unlink
+
++ link：可以为已存在的文件创建目录项（硬链接）
+
+  ```c++
+  /*
+  args:
+  	oldpath：旧文件路径
+  	newpath：新文件路径
+  return:
+  	success：0
+  	fail：-1 & errno
+  other：
+  	mv命令即是修改了目录项，而并不修改文件本身
+  */
+  int link(const* oldpath,const char* newpath);
+  ```
+
++ unlink：删除一个文件的目录项
+
+  ```c++
+  /*
+  args:
+  	pathname：文件路径
+  return:
+  	success：0
+  	fail：-1 & errno
+  note：
+  	unlink函数的特征:清除文件时，如果文件的硬链接数到0了，没有dentry对应，但该文件仍不会马上被释放。要等到所有打开该文件的进程关闭该文件，系统才会挑时间将该文件释放掉。
+  */
+  int unlink(const char* pathname);
+  ```
+
++ 隐式回收：当进程结束运行时，所有该进程打开的文件会被关闭，申请的内存空间会被释放。系统的这一特性称之为隐式回收系统资源。
+
+
+
+## dir
+
+注意：目录文件也是“文件”。其文件内容是该目录下所有子文件的目录项dentry。可以尝试用vim打开一个目录。   
+
+### opendir
+
+```c++
+/*
+args:
+	name：目录名
+return:
+	success：0
+	fail：-1 & errno
+*/
+DIR* opendir(char* name);
+```
+
+### closedir
+
+```c++
+/*
+args:
+	dp：目录指针
+return:
+	success：0
+	fail：-1 & errno
+*/
+DIR* closedir(DIR* dp);
+```
+
+### readdir
+
+```c++
+/*
+args:
+	dp：目录指针
+return:
+	success：0
+	fail：-1 & errno
+*/
+struct dirent* readdir(DIR* dp);
+struct dirent{
+    inode
+    char dname[256];
+}
+```
+
+
+
+## 进程
+
+### 内存映射
+
+![](imgs/RAM.png)
+
+### PCB
+
+每个进程在内核中都有一个**进程控制块(PCB)**来维护进程相关的信息，Linux内核的进程控制块是task_struct 结构体。
+
+PCB进程控制块：
+
++  进程id
++ 文件描述符表
++ 进程状态：初始态、就绪态、运行态、挂起态、终止态
++ 进程工作目录：
++ *umask掩码
++ 信号相关信息资源
++ 用户id和组id
+
+### 环境变量
+
+```sh
+# 查看所有环境变量
+env
+```
 
 
 
