@@ -1,4 +1,4 @@
-# cmd
+#  cmd
 
 ## dir
 
@@ -312,7 +312,12 @@ int sub(int,int);
 + display：设置跟踪变量
 + undisplay：取消设置跟踪变量
 
+gdb只能跟踪一个进程。可在**fork函数调用前**，通过指令设置gdb调试工具跟踪父进程或子进程。默认跟踪父进程。
 
+```sh
+set follow-fork-mode child #设置跟踪子进程
+set follow-fork-mode parent #设置跟踪父进程
+```
 
 # makefile
 
@@ -398,6 +403,26 @@ clean:
 	-rm -rf $(obj) a.out
 .PHONY: clean ALL
 ```
+
+```makefile
+src = $(wildcard ./src/*.cpp)
+# obj = $(patsubst ./src/%.cpp, ./bin/%.o, $(src))
+
+args = -Wall -g
+all:demo.out
+
+demo.out: $(src)
+        g++ $^ -o ./bin/$@ $(args)
+
+# $(obj):./bin/%.o:./src/%.cpp
+#       g++ -c $< -o $@ $(args)
+
+clean:
+        -rm -rf $(obj) ./bin/demo.out
+.PHONY: clean all
+```
+
+
 
  
 
@@ -739,6 +764,8 @@ struct dirent{
 
 ## 进程
 
+> kill -l
+
 ### 内存映射
 
 ![](imgs/RAM.png)
@@ -764,7 +791,146 @@ PCB进程控制块：
 env
 ```
 
+### fork
 
+```c++
+/*
+args: void
+return:
+	success：父进程返回子进程pid、子进程返回0
+	fail：-1 & errno
+note：
+	通过返回值判断当前进程
+*/
+pid_t fork(void);
+//获取当前进程pid
+pid_t getpid(void);
+//获取父进程pid
+pid_t getppid(void);
+```
+
+注：
+
++ fork后进程执行顺序不确定，取决于内核所用的调度算法
++ 在子进程中使用getppid返回1，是由于父进程先退出，造成子进程被init（id=1）接管
+
+
+
+### 进程共享
+
+父子进程间遵循**读时共享写时复制**原则
+
++ 相同
+
+  刚fork后：data段、text段、堆、栈、环境变量、全局变量、宿主目录位置、进程工作目录位置、信号处理方式
+
++ 不同
+
+  进程id、返回值、各自的父进程、进程创建时间、闹钟、未决信号集
+
++ 共享
+
+  1. 文件描述符
+  2. mmap映射区
+
+### exec
+
+```c++
+/*
+args: 
+return:
+	只有失败时才返回
+	fail：-1 & errno
+note：
+	l(list)：命令行参数列表
+	p(path)：搜索file时使用path变量
+	v(vector)：使用命令行参数数组
+	e(environment)：使用环境变量数组，不使用进程原有的环境变量，设置新加载程序运行的环境变量
+*/
+int execl(const char* path,const char* arg,...);
+int execlp(const char* file,const char* arg,...);
+int execle(const char* path,const char* arg,...,char* const envp[]);
+int execv(const char* path,char* const argv[]);
+int execvp(const char* file,char* const argv[]);
+int execve(const char* path,char* const argv[],char* const envp[]);
+
+//template
+//此函数参数从argv[0]开始算，因此要写两遍“ls”，第一遍是文件名，第二遍是命令行参数
+execlp("ls","ls","-l",NULL);
+```
+
+###  回收子进程
+
++ 孤儿进程
+
+  孤儿进程：父进程先于子进程结束，则子进程成为孤儿进程，init进程成为子进程的父进程，称为init进程 (进程孤儿院) 领养孤儿进程。
+
++ 僵尸进程
+
+  僵尸进程：进程终止，父进程尚未回收，子进程残留资源（PCB）存放于内核中，变成僵尸(zombie）进程。
+
+  特别注意，僵尸进程是不能使用kill命令清除掉的。因为kill命令只是用来终止进程的,而僵尸进程已经终止。此时，需要杀死父进程，子进程被init进程接管进行清理工作。
+
++ wait
+
+  + 阻塞等待子进程退出
+  + 清理子进程残留在内核的pcb资源
+  + 通过参数传出子进程结束状态
+
+  ```c++
+  #include <sys/wait.h>
+  //详见 man 2 wait
+  // 一次wait/waitpid函数调用，只能回收一个子进程
+  pid_t wait(int *status);
+  
+  int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options);
+  ```
+
+  ```c++
+  //template
+  int status;
+  pid_t pid = fork();
+  if(pid == 0){
+  	cout<<"=====sub====="<<endl;
+  	cout<<"pid: "<<getpid()<<" ppid: "<<getppid()<<endl;
+  	sleep(15);
+  	return 66;
+  }else if (pid > 0){
+  	cout<<"=====parent====="<<endl;
+  	cout<<"pid: "<<getpid()<<" ppid: "<<getppid()<<" subid: "<<pid<<endl;
+  	cout<<"waiting..."<<endl;
+      // wait...
+  	pid_t wpid = wait(&status);
+  	if(WIFEXITED(status)){
+  		cout<<"sub process exit normally "<<WEXITSTATUS(status)<<endl;
+  	}else if (WIFSIGNALED(status)){
+          //termsig：kill -9 sub_pid
+  		cout<<"sub process exit with termsig: "<<WTERMSIG(status)<<endl;
+  	}	
+  }else if (pid==-1){
+  	perror("create sub process failed");
+  }
+  return 0;
+  ```
+
++ waitpid
+
+  ```c++
+  #include <sys/wait.h>
+  /*
+  args: 
+  	pid：指定回收的子进程pid
+  	status：传出进程回收状态
+  	options：WNOHANG指定为非阻塞回收
+  return:
+  	>0：返回成功回收的子进程pid
+  	0：函数调用时，参3指定了WNOHANG， 并且，没有子进程结束。
+  	-1：fail & errno
+  */
+  pid_t waitpid(pid_t pid, int *status, int options);
+  ```
+
+  
 
 
 
