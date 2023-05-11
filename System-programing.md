@@ -881,6 +881,7 @@ execlp("ls","ls","-l",NULL);
   #include <sys/wait.h>
   //详见 man 2 wait
   // 一次wait/waitpid函数调用，只能回收一个子进程
+  // status 可通过宏函数查询子进程终止信息，如WIFEXITED、WIFSIGNALED等
   pid_t wait(int *status);
   
   int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options);
@@ -929,8 +930,136 @@ execlp("ls","ls","-l",NULL);
   */
   pid_t waitpid(pid_t pid, int *status, int options);
   ```
-
   
+  ```c++
+  //template
+  int status,i=0;
+  pid_t pid,wpid;
+  
+  for(i;i<5;i++){
+  	pid = fork();
+  	//子进程不进循环
+  	if(pid == 0){
+  		break;
+  	}
+  }
+  //父进程
+  if(i==5){
+      //阻塞方式
+      /*
+  	while ((wpid = waitpid(-1,NULL,0))){
+  		cout<<"wait for pid "<<wpid<<endl;
+  	}*/
+  	//非阻塞方式
+  	while ((wpid = waitpid(-1,NULL,WNOHANG))!=-1)
+  	{
+  		if(wpid>0){
+  			cout<<"wait for pid "<<wpid<<endl;
+  		}else if (wpid == 0)
+  		{
+  			sleep(1);
+  			continue;
+  		}
+  	}
+  }else{	//子进程
+  	sleep(i);
+  	cout<<"i am "<<i+1<<"th child pid="<<getpid()<<endl;
+  }
+  return 0;
+  ```
+  
+
+
+
+### 进程间通信IPC
+
+> inter-process communication
+
+常用的进程间通信方式有：
+
++ 管道（使用最简单）
++ 信号（开销最小）
++ 共享映射区mmap（无血缘关系）
++ 本地套接字socket（最稳定）
+
+
+
+### 管道
+
+实现原理：内核借助环形队列机制，使用内核缓冲区实现。
+
+特质：伪文件、管道中的数据只能一次读取、数据单向流动
+
+局限性：不能自己写自己读、数据不可反复读、半双工通信、血缘关系进程间可用 
+
+![](imgs/pipe.png)
+
+```c++
+/*
+args: 
+	fd[0]：读端
+	fd[1]：写端
+return:
+	0：成功
+	-1：fail & errno
+*/
+int pipe(int fd[2]);
+```
+
+```c++
+//template
+int ret;
+int fd[2];
+pid_t pid;
+char* str = "hello pipe\n";
+char buf[1024];
+ret = pipe(fd);
+if(ret==-1)
+    sys_err("pipe error");
+pid = fork();//创建子进程时，子进程也有两个文件描述符指向同一管道
+if(pid>0){
+    close(fd[0]);//父进程关闭读端
+    write(fd[1],str,strlen(str));
+    sleep(1);
+    close(fd[1]);
+}else if(pid==0){
+    close(fd[1]);//子进程关闭写端
+    ret = read(fd[0],buf,sizeof(buf));
+    write(STDOUT_FILENO,buf,ret);
+    close(fd[0]);
+}
+//practice
+//使用管道实现父子进程间通信，完成: ls | wc -l。假定父进程实现 ls，子进程实现 wc
+```
+
+管道读写行为：
+
++ 读管道：
+  1. 管道有数据：read返回实际读到的字节数
+  2. 管道无数据：
+     1. 无写端：read返回0（类似读到文件尾）
+     2. 有写端：read阻塞等待
++ 写管道：
+  1. 无读端：异常终止（SIGPIPE）
+  2. 有读端：
+     1. 管道已满，阻塞等待
+     2. 管道未满，返回写出的字节个数
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
