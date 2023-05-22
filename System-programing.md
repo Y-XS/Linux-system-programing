@@ -426,7 +426,7 @@ clean:
 
  
 
-# 系统编程
+# ---系统编程---
 
 ```sh
 # 安装man-pages
@@ -437,9 +437,9 @@ man man
 man 2 open
 ```
 
-## common
+# common
 
-### 基础知识
+## 基础知识
 
 ![](imgs/inode.png)
 
@@ -458,7 +458,7 @@ man 2 open
 
 
 
-### 文件描述符
+## 文件描述符
 
 | ![](imgs/fd.png) | ![](imgs/fd2.png) |
 | ---------------- | ----------------- |
@@ -477,7 +477,7 @@ man 2 open
 
 
 
-### 阻塞 / 非阻塞
+## 阻塞 / 非阻塞
 
 > 阻塞/非阻塞：是设备文件、网络文件的属性
 
@@ -489,7 +489,7 @@ man 2 open
 open("/dev/tty",O_RDWR|O_NONBLOCK);
 ```
 
-### func
+## func
 
 + strerror
 
@@ -555,15 +555,12 @@ open("/dev/tty",O_RDWR|O_NONBLOCK);
   int dup2(int oldfd,int newfd);
   ```
 
-  
 
 
 
+# 文件IO
 
-
-## 文件IO
-
-### open
+## open
 
 ```c++
 #include<unistd.h>
@@ -586,13 +583,13 @@ int fd = open(src_path,O_RDWR);
 int fd = open(src_path,O_RDWR|O_CREAT,0777);
 ```
 
-### close
+## close
 
 ```c++
 int close(int fd);
 ```
 
-### read / write
+## read / write
 
 ![](imgs/buf.png)
 
@@ -631,9 +628,7 @@ ssize_t write(int fd, const void *buf, size_t count);
 write(fd2,buf,n);
 ```
 
-
-
-### lseek
+## lseek
 
 > 文件读写使用同一偏移位置
 
@@ -654,7 +649,7 @@ application:
 off_t lseek(int fd, off_t offset, int whence);
 ```
 
-### stat
+## stat
 
 ```c++
 /*
@@ -674,9 +669,7 @@ struct stat{
 }
 ```
 
-
-
-### link/unlink
+## link/unlink
 
 + link：可以为已存在的文件创建目录项（硬链接）
 
@@ -711,13 +704,11 @@ struct stat{
 
 + 隐式回收：当进程结束运行时，所有该进程打开的文件会被关闭，申请的内存空间会被释放。系统的这一特性称之为隐式回收系统资源。
 
-
-
-## dir
+# dir
 
 注意：目录文件也是“文件”。其文件内容是该目录下所有子文件的目录项dentry。可以尝试用vim打开一个目录。   
 
-### opendir
+## opendir
 
 ```c++
 /*
@@ -730,7 +721,7 @@ return:
 DIR* opendir(char* name);
 ```
 
-### closedir
+## closedir
 
 ```c++
 /*
@@ -743,7 +734,7 @@ return:
 DIR* closedir(DIR* dp);
 ```
 
-### readdir
+## readdir
 
 ```c++
 /*
@@ -760,17 +751,15 @@ struct dirent{
 }
 ```
 
-
-
-## 进程
+# 进程
 
 > kill -l
 
-### 内存映射
+## 内存映射
 
 ![](imgs/RAM.png)
 
-### PCB
+## PCB
 
 每个进程在内核中都有一个**进程控制块(PCB)**来维护进程相关的信息，Linux内核的进程控制块是task_struct 结构体。
 
@@ -784,14 +773,14 @@ PCB进程控制块：
 + 信号相关信息资源
 + 用户id和组id
 
-### 环境变量
+## 环境变量
 
 ```sh
 # 查看所有环境变量
 env
 ```
 
-### fork
+## fork
 
 ```c++
 /*
@@ -816,7 +805,7 @@ pid_t getppid(void);
 
 
 
-### 进程共享
+## 进程共享
 
 父子进程间遵循**读时共享写时复制**原则
 
@@ -833,7 +822,7 @@ pid_t getppid(void);
   1. 文件描述符
   2. mmap映射区
 
-### exec
+## exec
 
 ```c++
 /*
@@ -859,7 +848,7 @@ int execve(const char* path,char* const argv[],char* const envp[]);
 execlp("ls","ls","-l",NULL);
 ```
 
-###  回收子进程
+##  回收子进程
 
 + 孤儿进程
 
@@ -971,7 +960,7 @@ execlp("ls","ls","-l",NULL);
 
 
 
-### 进程间通信IPC
+## 进程间通信IPC
 
 > inter-process communication
 
@@ -984,11 +973,13 @@ execlp("ls","ls","-l",NULL);
 
 
 
-### 管道
+### 管道PIPE
+
+> 确保关闭多余读写端，保证数据单向流通
 
 实现原理：内核借助环形队列机制，使用内核缓冲区实现。
 
-特质：伪文件、管道中的数据只能一次读取、数据单向流动
+特质：**伪文件**、管道中的数据只能一次读取、**数据单向流动**
 
 局限性：不能自己写自己读、数据不可反复读、半双工通信、血缘关系进程间可用 
 
@@ -1030,6 +1021,7 @@ if(pid>0){
 }
 //practice
 //使用管道实现父子进程间通信，完成: ls | wc -l。假定父进程实现 ls，子进程实现 wc
+//使用管道实现兄弟进程间通信，完成: ls | wc -l。假定兄进程实现 ls，弟进程实现 wc
 ```
 
 管道读写行为：
@@ -1044,6 +1036,294 @@ if(pid>0){
   2. 有读端：
      1. 管道已满，阻塞等待
      2. 管道未满，返回写出的字节个数
+
+管道缓冲区大小：
+
+```c++
+//可用ulimit -a 命令查看当前系统中创建管道文件所对应的内核缓冲区大小。通常为:
+pipe size	(512 bytes,-p) 8
+//也可以使用fpathconf函数，借助参数选项来查看。使用该宏应引入头文件<unistd.h>
+/*
+args: 
+	fd：
+	name：
+return:
+	success：返回管道的大小
+	fail：-1 & errno
+*/
+long fpathconf(int fd, int name);
+```
+
+### 命名管道FIFO
+
+```c++
+#include <sys/stat.h>
+/*
+args: 
+	pathname：管道路径
+	mode：文件权限
+return:
+	success：0
+	fail：-1 & errno
+*/
+//创建命名管道后，即可像普通文件一样对该管道进行open、read、write
+int mkfifo(const char *pathname, mode_t mode);
+```
+
+
+
+### 共享存储映射mmap
+
+> mmap容易出错，注意校验返回值
+
+```c++
+#include <sys/mman.h>
+/*
+args: 
+	addr：指定映射区的首地址。通常传NULL，表示让系统自动分配
+    length：共享内存映射区的大小。(<=文件的实际大小)
+    prot：共享内存映射区的读写属性。PROT_READ、PROT_WRITE、PROT_READ|PROT_WRITE
+    flags：标注共享内存的共享属性。MAP_SHARED、MAP_PRIVATE、MAP_ANONYMOUS(匿名映射)
+    fd：用于创建共享内存映射区的那个文件的文件描述符
+    offset：默认0，表示映射文件全部。偏移位置。需是4k的整数倍
+return:
+	success：映射区的首地址
+	fail：MAP_FAILED（void*(-1)） & errno
+*/
+void *mmap(void *addr,size_t length,int prot,int flags,int fd,off_t offset);//创建共享内存映射
+/*
+args: 
+	addr：mmap返回的地址
+    1ength：共享内存映射区的大小。(<=文件的实际大小)
+return:
+	success：0
+	fail：-1 & errno
+*/
+int munmap(void *addr,size_t length);
+```
+
+```c++
+//template
+//1.父子进程间mmap通信
+int var=100;
+int main(){
+    int *p;
+    pid_t pid;
+    int fd;
+    fd = open("temp",O_RDWR|O_CREAT|O_TRUNC,0644);
+    ftruncate(fd,4);
+    p = (int *)mmap(NULL,4,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+    close(fd);
+    pid = fork();
+    if(pid==0){
+        *p=2000;
+        var=1000;
+        printf("child,*p=%d,var=%d\n",*p,var);
+    }else{
+        sleep(1);
+        printf("parent,*p=%d,var=%d\n",*p,var);
+    }
+}
+
+//2.无血缘关系进程间mmap通信
+//*****写端*****
+struct student{
+    int id;
+    char name[256];
+    int age;
+};
+int main(){
+    struct student stu={1,"alex",18};
+    struct student *p;
+    int fd;
+    fd = open("test_mmap",O_RDWR|O_CREAT|O_TRUNC,0644);
+    ftruncate(fd,sizeof(stu));//修改文件大小
+    p = mmap(NULL,sizeof(stu),PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);//创建映射区
+    close(fd);//映射区创建后即可关闭文件
+    while(1){
+        memcpy(p,&stu,sizeof(stu));
+        stu.id++;
+        sleep(1);
+    }
+    munmap(p,sizeof(stu));
+    return 0;
+}
+//*****读端*****
+struct student{
+    int id;
+    char name[256];
+    int age;
+};
+int main(){
+    struct student stu;
+    struct student *p;
+    int fd;
+    fd = open("test_mmap",O_RDONLY);
+    p = mmap(NULL,sizeof(stu),PROT_READ,MAP_SHARED,fd,0);//创建映射区
+    close(fd);//映射区创建后即可关闭文件
+    while(1){
+        printf("id=%d,name=%s,age=%d\n",p->id,p->nane,p->age);
+        sleep(1);
+    }
+    munmap(p,sizeof(stu));
+    return 0;
+}
+//3.匿名映射
+```
+
+注意事项：
+
++ 文件大小
++ read、write权限
++ MAP_SHARED和MAP_PRIVATE
++ 映射区内存不能越界访问
+
+
+
+### 信号
+
+> man 7 signal
+>
+> kill -l
+>
+> man 2 kill
+
++ 信号共性：简单、不能携带大量信息、满足条件才发送。
+
++ 信号特质：信号是软件层面上的“中断”。一旦信号产生，无论程序执行到什么位置，必须立即停止运行，处理信号，处理结束，再继续执行后续指令。所有信号的产生及处理全部都是由【内核】完成的。
+
++ 产生信号：
+
+  1. 按键产生
+  2. 系统调用产生
+  3. 软件条件产生
+  4. 硬件异常产生
+  5. 命令产生
+
++ 概念：
+
+  + 未决：产生与递达之间状态
+  + 递达：产生并且送达到进程。直接被内核处理掉
+  + 信号处理方式：执行默认处理动作、忽略、捕捉(自定义)
+  + 阻塞信号集(信号屏蔽字)：本质:位图。用来记录信号的屏蔽状态。一旦被屏蔽的信号，在解除屏蔽前，一直处于未决态。
+  + 未决信号集：本质:位图。用来记录信号的处理状态。该信号集中的信号，表示，已经产生，但尚未被处理。
+
++ 信号4要素：
+
+  信号使用之前，应先确定其4要素，而后再用！！！
+
+  信号编号、信号名称、信号对应事件、信号默认处理动作
+
++ 常用信号：
+
+```c++
+//kill函数与命令
+/*
+args：
+	pid：
+		>0：发送信号给指定进程
+		=0：发送信号给跟调用kill函数的那个进程处于同一进程组的进程。
+		<-1：取绝对值，发送信号给该绝对值所对应的进程组的所有组员。
+		=-1：发送信号给，有权限发送的所有进程。
+	signum：信号类型
+*/
+int kill(pid_t pid,int signum);
+```
+
+```c++
+//alarm
+//每个进程都有且只有唯一一个定时器
+//定时发送SIGALRM给当前进程
+/*
+args：
+	seconds：定时秒数
+return：
+	返回上次定时剩余时间
+note：
+	time命令：查看程序执行时间。实际时间=用户时间+内核时间+等待时间。优化瓶颈 IO
+*/
+unsigned int alarm(unsigned int seconds);
+```
+
+```c++
+int setitimer(int which,const struct itimerval *new_value,struct itimerval *old_value);
+int raise(int sig);
+void abort(void);
+void signal();
+```
+
++ 信号集操作函数
+
+  ![](imgs/signal.png)
+
+  
+
+  ```c++
+  sigset_t set;//自定义信号集
+  sigemptyset(sigset_t *set);//清空信号集
+  sigfillset(sigset_t *set);//全部置1
+  sigaddset(sigset_t *set,int signum);//将一个信号添加到集合中
+  sigdelset(sigset_t *set,int signum);//将一个信号从集合中移除
+  sigismember(const sigset_t *set,int signum);//判断一个信号是否在集合中
+  ```
+
+  ```c++
+  //设置信号屏蔽字和解除屏蔽
+  /*
+  args：
+  	how：
+  	set：
+  	oldset：  
+  */
+  int sigprocmask(int how,const sigset_t *set,sigset_t *oldset);
+  //查看读取未决信号集（操作系统不让修改）
+  int sigpending(sigset_t *set);
+  ```
+
+  ```c++
+  //template
+  sigset_t set,oldset,pset;
+  sigemptyset(&set);
+  sigaddset(&set,SIGINT);
+  sigaddset(&set,SIGQUIT);
+  sigaddset(&set,SIGBUS);
+  sigaddset(&set,SIGKILL);
+  int ret = sigprocmask(SIG_BLOCK,&set,&oldset);
+  ```
+
++ **信号捕捉**
+
+  ![](imgs/signal-catch.png)
+
+  特性：
+  
+  1. 信号捕捉函数工作期间，取 sa_mask 和默认信号屏蔽字的并集来指定信号屏蔽字，信号处理函数结束后，才恢复默认的信号屏蔽字
+  2. XXX信号捕捉函数执行期间，XXX信号自动被屏蔽（sa_flags=0时生效）
+  3. 阻塞的常规信号不支持排队，产生多次只记录一次（后32实时信号支持排队）
+  
+  ```c++
+  //捕捉函数
+  signal();//简单，不同系统可能不一样
+  sigaction(); //通用、重点
+  ```
+  
+  ```c++
+  void sig_catch(int signum){
+      cout<<"catch you!! "<<signum<<endl;
+      return;
+  }
+  signal(SIGINT,sig_catch);
+  ```
+  
+  ```c++
+  //template
+  //借助信号捕捉回收子进程 P140
+  
+  ```
+  
+  
+
+
 
 
 
