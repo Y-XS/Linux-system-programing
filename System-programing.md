@@ -4,6 +4,15 @@
 
 ## chmod
 
+## ps
+
+```sh
+ps ajx
+ps aux
+```
+
+
+
 ## find
 
 + -type：按文件类型搜索 d/p/s/c/b/l/f
@@ -474,6 +483,20 @@ man 2 open
   + 1：STDOUT_FILENO
 
   + 2：STDERR_FILENO
+
+
+
+## 虚拟设备
+
+```c++
+//linux 虚拟设备
+//1. /dev/null 文件黑洞 
+//2. /dev/zero 无线空字符 
+//3. /dev/random 产生随机数据依赖系统中断，速度较慢，但随机性好
+//4. /dev/urandom 不依赖系统中断，数据产生速度快，但随机性较低
+```
+
+
 
 
 
@@ -1325,9 +1348,118 @@ void signal();
 
 
 
+## 进程组和会话
+
+```c++
+//获取进程所属的会话ID
+pid_t getsid(pid_t pid); 
+//创建一个会话，并以自己的ID设置进程组ID，同时也是新会话的ID
+pid_t setsid(void); 
+```
 
 
 
+## 守护进程
+
+> 守护进程用脚本管理
+
+daemon进程。通常运行于操作系统后台，脱离控制终端。一般不与用户直接交互。周期性的等待某个事件发生或周期性执行某一动作。
+不受用户登录注销影响。通常采用以d结尾的命名方式。如 sshd、httpd 等
+
+### 创建步骤
+
+1. fork子进程，让父进程终止。
+2. 子进程调用 setsid() 创建新会话
+3. 通常根据需要，改变工作目录位置 chdir()
+4. 通常根据需要，重设umask文件权限掩码
+5. 通常根据需要，关闭/重定向 文件描述符（将0、1、2重定向到/dev/null）
+6. 守护进程 业务逻辑。while ()
+
+```c++
+//template
+pid_t pid;	
+
+pid = fork();
+if(pid>0)		//父进程终止
+    exit(0);
+
+if(setsid() == -1)	//创建新会话
+    sys_err("setsid error");
+
+chdir("/root/study");	//改变工作目录
+umask(0022);			//改变文件访问权限掩码
+
+close(STDIN_FILENO);	//关闭文件描述符0
+int fd = open("/dev/null",O_RDWR);	// fd-->0
+if(fd==-1)
+    sys_err("open file error");
+
+dup2(fd,STDOUT_FILENO);		//重定向 stdout & stderr
+dup2(fd,STDERR_FILENO);
+
+while (1);		//模拟守护进程业务
+return 0;
+```
+
+
+
+# 线程
+
+> 轻量级进程（light-weight process，LWP）
+
+```sh
+ps -Lf 进程id
+# 线程号 LWP
+```
+
+进程：资源分配的基本单位，有独立的 PCB 和进程地址空间
+
+线程：CPU调度的基本单位（最小的执行单位），有独立的PCB，没有独立的进程地址空间
+
+
+
+## 三级映射
+
+
+
+## 线程资源
+
+### 共享
+
+1. 文件描述符表
+2. 每种信号的处理方式
+3. 当前工作目录
+4. 用户ID和组ID
+5. 内存地址空间（.text/.data/.bss/heap/共享库）
+
+### 不共享
+
+1. 线程id
+2. 处理器现场（寄存器）和栈指针（内核栈）
+3. 独立的栈空间（用户空间栈）
+4. errno 变量
+5. 信号屏蔽字
+6. 调度优先级
+
+
+
+## 优缺点
+
+优点：
+
+1. 提高程序并发性
+2. 开销小
+3. 数据通信、共享数据方便
+
+缺点：
+
+1. 库函数，不稳定 
+2. 调试、编写困难、gdb 不支持
+3. 对信号支持不好
+
+优点相对突出，缺点均不是硬伤。Linux 下由于实现方法导致进程、线程差别不是很大。
+
+优先选择线程，简单，性能高
 
 
 
