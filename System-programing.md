@@ -777,6 +777,15 @@ struct dirent{
 # 进程
 
 > kill -l
+>
+> 进程中可用 perror 打印错误信息
+
+```c++
+//进程中可用 perror 打印错误信息
+perror("xxx error");
+```
+
+
 
 ## 内存映射
 
@@ -1406,6 +1415,8 @@ return 0;
 # 线程
 
 > 轻量级进程（light-weight process，LWP）
+>
+> 线程中直接返回 errno，不用 perror
 
 ```sh
 ps -Lf 进程id
@@ -1415,6 +1426,11 @@ ps -Lf 进程id
 进程：资源分配的基本单位，有独立的 PCB 和进程地址空间
 
 线程：CPU调度的基本单位（最小的执行单位），有独立的PCB，没有独立的进程地址空间
+
+```c++
+//注：线程中检查出错信息
+fprintf(stderr,"xxx error：%s\n",strerror(ret));
+```
 
 
 
@@ -1431,12 +1447,13 @@ ps -Lf 进程id
 3. 当前工作目录
 4. 用户ID和组ID
 5. 内存地址空间（.text/.data/.bss/heap/共享库）
+6. **全局变量**
 
 ### 不共享
 
 1. 线程id
 2. 处理器现场（寄存器）和栈指针（内核栈）
-3. 独立的栈空间（用户空间栈）
+3. 独立的**栈空间**（用户空间栈）
 4. errno 变量
 5. 信号屏蔽字
 6. 调度优先级
@@ -1463,13 +1480,143 @@ ps -Lf 进程id
 
 
 
+## func
+
+### pthread_self
+
+```c++
+//返回当前线程号
+pthread_t pthread_self(void);
+```
+
+### pthread_create
+
+```c++
+/*
+args:
+	tid：返回新创建的子线程id
+	attr：线程属性，传NULL使用默认属性
+	start_rountn：子线程回调函数
+	arg：回调函数的参数。没有填NULL
+return：
+	success：0
+	fail：errno
+*/
+int pthread_create(pthread_t *tid,const pthread_attr_t *attr,void *(*start_rountn)(void*),void *arg);
+```
+
+### pthread_exit
+
+```c++
+//exit(0) 直接退出进程
+//return NULL 表示返回到调用者
+void pthread_exit(void *retval);//退出当前线程
+```
+
+### pthread_join
+
+```c++
+//阻塞回收线程
+int pthread_join(pthread_t thread,void **retval);
+
+//template
+struct student{
+    int no;
+    char name[32];
+};
+void *callback(void *arg){
+    //法1
+    struct student *stu;
+    stu = malloc(sizeof(stu));
+    //法2
+    //struct student *stu = (struct student *)arg;
+    stu->no = 666;
+    strcpy(stu->name,"alex");
+    return (void*)stu;
+}
+int main(){
+    pthread_t tid;
+    struct student *rstu,stu;
+    //法1
+    int ret = pthread_create(&tid,NULL,callback,NULL);
+    //法2
+    //int ret = pthread_create(&tid,NULL,callback,(void*)&stu);
+    ret = pthread_join(tid,(void**)&rstu);
+    cout<<"child thread return with no="<<rstu->no<<", name="<<srtu->name<<endl;
+    pthread_exit(NULL);
+}
+
+//practice
+//使用 pthread_join 函数将循环创建的多个子线程回收
+```
+
+### pthread_detach
+
+线程分离状态：指定该状态，线程主动与主控线程断开关系。线程结束后，其退出状态不由其他线程获取，而直接自己自动释放。
+
+网络、多线程服务器常用
+
+```c++
+//实现线程分离
+//还可通过线程属性来设置游离态
+int pthread_detach(pthread_t thread);
+```
+
+### pthread_cancel
+
+```c++
+//杀死一个线程，需要到达取消点(保存点)
+int pthread_cancel(pthread_t thread);
+/*
+	如果，子线程没有到达取消点， 那么pthread_cancel无效。
+	我们可以在程序中，手动添加一个取消点。使用 pthread_testcancel()
+	成功被 pthread_cancel() 杀死的线程，返回-1.使用pthread_join 回收。
+*/
+```
 
 
 
+## 线程属性
+
+```c++
+//通过线程属性设置游离态
+pthread_attr_t attr;										 //创建一个线程属性结构体变量
+pthread_attr_init(&attr);									 //初始化线程属性
+pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);	//设置线程属性为分离态
+pthread_create(&tid,&attr,callback,NULL);					  //借助修改后的 设置线程属性 创建为分离态的新线程
+pthread_attr_destory(&attr);							     //销毁线程属性
+```
 
 
 
+## 注意事项
 
+1. 主线程退出其他线程不退出，主线程应调用 pthread_exit
+
+2. 避免僵尸线程
+
+   + pthread_join
+   + pthread_detach
+   + pthread_create 指定分离属性
+
+   被 join 线程可能在 join 函数返回前就释放完自己的所有内存资源，所以不应当返回被回收线程栈中的值
+
+3. malloc 和 mmap 申请的内存可以被其他线程释放
+
+4. 应避免在多线程模型中调用 fork 除非，马上 exec，子进程中只有调用 fork 的线程存在，其他线程在子进程中均 pthread_exit 
+
+5. 信号的复杂语义很难和多线程共存，应避免在多线程引入信号机制
+
+# 进程线程对比
+
+| 线程             | 进程               |
+| ---------------- | ------------------ |
+| pthread_create() | fork()             |
+| pthread_self()   | getpid()           |
+| pthread_exit()   | exit()             |
+| pthread_join()   | wait() / waitpid() |
+| pthread_cancel() | kill()             |
+| pthread_detach() | 无对应，可创建会话 |
 
 
 
