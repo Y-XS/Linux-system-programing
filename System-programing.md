@@ -176,7 +176,7 @@ yum update sl
 + -L：指定动态库路径
 
   ```sh
-  gcc hello.cpp -I ./include -o hello -g -Wall -D HELLO
+  gcc hello.cpp -I ./include -o hello -g -Wall -D HELLO -lpthread
   ```
 
 # lib
@@ -472,6 +472,8 @@ man 2 open
 | ![](imgs/fd.png) | ![](imgs/fd2.png) |
 | ---------------- | ----------------- |
 
+> 进程地址空间 0-4 G
+
 + PCB进程控制块：本质是结构体
 
 + 成员：文件描述符表
@@ -531,7 +533,10 @@ open("/dev/tty",O_RDWR|O_NONBLOCK);
 
 + strace
 
-> 命令：输出程序执行过程中的系统调用
+  ```sh
+  strace ./a.out
+  # 命令：输出程序执行过程中的系统调用
+  ```
 
 + fcntl
 
@@ -545,7 +550,7 @@ open("/dev/tty",O_RDWR|O_NONBLOCK);
   	fd：文件描述符
   	cmd：操作命令
   cmd:
-  	F_DUPFD：Find the lowest numbered available file descriptor 				greater than or equal to arg and make it be a copy of fd.
+  	F_DUPFD：Find the lowest numbered available file descriptor greater than or equal to arg and make it be a copy of fd.
   	F_GETFL
   	F_SETFL
   return:
@@ -574,11 +579,35 @@ open("/dev/tty",O_RDWR|O_NONBLOCK);
   	fail：-1 & errno
   */
   int dup(int oldfd);
-  // newfd -> oldfd
+  // oldfd <- newfd
   int dup2(int oldfd,int newfd);
   ```
+  
++ memcpy
 
+  ```c++
+  void * memcpy(void * destination, const void * source, size_t num);
+  ```
 
++ memset
+
+  ```c++
+  void *memset(void *dest, int c, size_t count);
+  ```
+
++ memmove
+
+  ```c++
+  void * memmove(void* destination, const void* source, size_t num);
+  ```
+
++ memcmp
+
+  ```c++
+  int memcmp(const void * ptr1, const void* ptr2, size_t num);
+  ```
+
+  
 
 
 # 文件IO
@@ -689,6 +718,7 @@ int stat(const char* path,struct stat *buf);
 struct stat{
     st_size,//获取文件大小
     st_mode,//获取文件类型
+    ...
 }
 ```
 
@@ -793,7 +823,7 @@ perror("xxx error");
 
 ## PCB
 
-每个进程在内核中都有一个**进程控制块(PCB)**来维护进程相关的信息，Linux内核的进程控制块是task_struct 结构体。
+每个进程在内核中都有一个**进程控制块(PCB)**来维护进程相关的信息，Linux内核的进程控制块是 task_struct 结构体。
 
 PCB进程控制块：
 
@@ -833,7 +863,7 @@ pid_t getppid(void);
 注：
 
 + fork后进程执行顺序不确定，取决于内核所用的调度算法
-+ 在子进程中使用getppid返回1，是由于父进程先退出，造成子进程被init（id=1）接管
++ 在子进程中使用 getppid 返回1，是由于父进程先退出，造成子进程被 init（id=1）接管
 
 
 
@@ -905,7 +935,7 @@ execlp("ls","ls","-l",NULL);
   // status 可通过宏函数查询子进程终止信息，如WIFEXITED、WIFSIGNALED等
   pid_t wait(int *status);
   
-  int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options);
+  int waitpid(idtype_t idtype, id_t id, siginfo_t *infop, int options);
   ```
 
   ```c++
@@ -1237,8 +1267,8 @@ int main(){
   + 未决：产生与递达之间状态
   + 递达：产生并且送达到进程。直接被内核处理掉
   + 信号处理方式：执行默认处理动作、忽略、捕捉(自定义)
-  + 阻塞信号集(信号屏蔽字)：本质:位图。用来记录信号的屏蔽状态。一旦被屏蔽的信号，在解除屏蔽前，一直处于未决态。
-  + 未决信号集：本质:位图。用来记录信号的处理状态。该信号集中的信号，表示，已经产生，但尚未被处理。
+  + **阻塞信号集**(信号屏蔽字)：本质:位图。用来记录信号的屏蔽状态。一旦被屏蔽的信号，在解除屏蔽前，一直处于未决态。
+  + **未决信号集**：本质:位图。用来记录信号的处理状态。该信号集中的信号，表示，已经产生，但尚未被处理。
 
 + 信号4要素：
 
@@ -1291,6 +1321,9 @@ void signal();
   
 
   ```c++
+  /*
+  	用自定义信号集去更改阻塞信号集，从而影响未决信号集（操作系统不开放）
+  */
   sigset_t set;//自定义信号集
   sigemptyset(sigset_t *set);//清空信号集
   sigfillset(sigset_t *set);//全部置1
@@ -1304,6 +1337,9 @@ void signal();
   /*
   args：
   	how：
+  		SIG_BLOCK：设置需要屏蔽的信号	mask = mask|set
+  		SIG_UNBLOCK：设置需要解除屏蔽的信号 mask = mask & ~set
+  		SIG_SETMASK：替代原始屏蔽集为新屏蔽集 mask = set（不推荐）
   	set：
   	oldset：  
   */
@@ -1314,13 +1350,13 @@ void signal();
 
   ```c++
   //template
-  sigset_t set,oldset,pset;
-  sigemptyset(&set);
-  sigaddset(&set,SIGINT);
+  sigset_t set,oldset,pset;//定义信号集
+  sigemptyset(&set);//信号集置零
+  sigaddset(&set,SIGINT);//添加信号
   sigaddset(&set,SIGQUIT);
   sigaddset(&set,SIGBUS);
   sigaddset(&set,SIGKILL);
-  int ret = sigprocmask(SIG_BLOCK,&set,&oldset);
+  int ret = sigprocmask(SIG_BLOCK,&set,&oldset);//设置信号屏蔽
   ```
 
 + **信号捕捉**
@@ -1330,16 +1366,27 @@ void signal();
   特性：
   
   1. 信号捕捉函数工作期间，取 sa_mask 和默认信号屏蔽字的并集来指定信号屏蔽字，信号处理函数结束后，才恢复默认的信号屏蔽字
-  2. XXX信号捕捉函数执行期间，XXX信号自动被屏蔽（sa_flags=0时生效）
+  2. XXX信号捕捉函数执行期间，该信号自动被屏蔽（sa_flags=0时生效）
   3. 阻塞的常规信号不支持排队，产生多次只记录一次（后32实时信号支持排队）
   
   ```c++
-  //捕捉函数
-  signal();//简单，不同系统可能不一样
-  sigaction(); //通用、重点
+  //信号捕捉函数
+  // typedef void (*sighandler_t)(int)
+  signal(int signum,sighandler_t handler);//简单，不同系统可能不一样
+  sigaction(int signum,const struct sigaction *act,struct sigaction *oldact); //通用、重点
+  
+  // sigaction 结构体
+  struct sigaction{
+      void (*sa_handler)(int);//handler函数指针
+      void (*sa_sigaction)(int,siginfo_t *,void *);//一般不用
+      sigset_t sa_mask;//设置临时信号屏蔽字，通常传0
+      int sa_flags;	//通常传0
+      void (*sa_restorer)(void);//废弃
+  }
   ```
   
   ```c++
+  //template -- signal
   void sig_catch(int signum){
       cout<<"catch you!! "<<signum<<endl;
       return;
@@ -1347,12 +1394,72 @@ void signal();
   signal(SIGINT,sig_catch);
   ```
   
+  ``` c
+  //template -- sigaction
+  void sig_catch(int signum){
+  	cout<<"catch signal "<<signum<<" !"<<endl;
+  	return;
+  }
+  int main(){
+  	struct sigaction act,oldact;
+  
+  	act.sa_handler = sig_catch;			//设置回调函数
+  	sigemptyset(&act.sa_mask);			//设置信号屏蔽字，只在sig_catch工作期间生效
+  	act.sa_flags = 0;					//默认传0
+  
+  	int ret = sigaction(SIGINT,&act,&oldact);//注册信号捕捉函数
+  	if(ret == -1){
+  		cout<<"sigaction error"<<endl;
+  	}
+  	while(1);
+  	return 0;
+  }
+  ```
+  
+  
+  
   ```c++
   //template
   //借助信号捕捉回收子进程 P140
+  void sig_catch(int signum){
+  	pid_t wpid;
+  	int status;
+  	while((wpid = waitpid(-1,&status,0))!=-1){
+  		if(WIFEXITED(status))
+  			cout<<"-------------------wait for child with pid "<<wpid<<" & return "<<WEXITSTATUS(status)<<endl;
+  	}
+  }
+  int main(){
+  	pid_t pid;
+  	int i;
+  	//阻塞信号
+  	sigset_t set;
+  	sigemptyset(&set);
+  	sigaddset(&set,SIGCHLD);
+  	sigprocmask(SIG_BLOCK,&set,NULL);
+      
+  	for(i=0;i<15;i++){
+  		if((pid = fork()) == 0)
+  			break;
+  	}
+  	if(i == 15){//主进程
+  		struct sigaction act;
+  		act.sa_handler = sig_catch;
+  		sigemptyset(&act.sa_mask);
+  		act.sa_flags = 0;
   
+  		//注册信号捕捉函数
+  		sigaction(SIGCHLD,&act,NULL);
+  		//解除信号阻塞
+  		sigprocmask(SIG_UNBLOCK,&set,NULL);
+  		cout<<"I'm parent with pid "<<getpid()<<endl;
+  	}else{//子进程
+  		cout<<"I'm "<<i+1<<"th child with pid "<<getpid()<<endl;
+  		return i;
+  	}
+  	return 0;
+  }
   ```
-  
   
 
 
@@ -1430,6 +1537,9 @@ ps -Lf 进程id
 ```c++
 //注：线程中检查出错信息
 fprintf(stderr,"xxx error：%s\n",strerror(ret));
+//使用线程需注意编译时带上 -lpthread
+//link with -pthread
+g++ hello.cpp -o hello -lpthread
 ```
 
 
@@ -1607,6 +1717,191 @@ pthread_attr_destory(&attr);							     //销毁线程属性
 
 5. 信号的复杂语义很难和多线程共存，应避免在多线程引入信号机制
 
+
+
+## 线程同步
+
+线程同步：协同步调，对公共区域数据按序访问。防止数据混乱，产生与时间有关的错误。
+
+### 锁
+
+锁：建议锁，对公共数据进行保护。所有线程 **应该** 在访问公共数据前先拿锁再访问。但，锁本身不具备强制性。
+
+### 互斥锁
+
+mutex（互斥量、互斥锁）使用步骤：
+
+1. 创建锁
+2. 初始化
+3. 加锁
+4. 访问共享数据（stdout）
+5. 解锁
+6. 销毁锁
+
+```c++
+pthread_mutex_t lock;
+pthread_mutex_init;		//1
+pthread_mutex_lock;		//1--  -->  0
+pthread_mutex_unlock();	//0++  -->  1
+pthread_mutex_destroy();
+```
+
+注意事项：
+
++ 尽量保证锁的粒度， 越小越好。（访问共享数据前，加锁。访问结束 **立即** 解锁）
++ 互斥锁，本质是结构体。我们可以看成整数。 初值为 1。（pthread_mutex_init()函数调用成功）
++ 加锁：--操作
++ 解锁：++操作
++ try锁：尝试加锁，成功--。失败，返回。同时设置错误号 EBUSY
+
+restrict 关键字：用来限定指针变量。被该关键字限定的指针变量所指向的内存操作，必须由本指针完成。
+
+
+
+### 死锁
+
+1. 对一个锁反复 lock
+
+   ![](imgs/lock1.png)
+
+2. 两个线程，各自持有一把锁，请求另一把
+
+   ![](imgs/lock2.png)
+
+
+
+### 读写锁
+
+与互斥量类似，但读写锁允许更高的并行性。其特性为：**写独占，读共享**
+
+**读锁**：以读方式给数据加锁
+
+**写锁**：以写方式给数据加锁
+
++   锁只有一把
++ 读共享，写独占
++ 写锁优先级高
+
+```c++
+//定义读写锁变量
+pthread_rwlock_t rwlock;
+//读写锁操作函数
+pthread_rwlock_init();
+pthread_rwlock_rdlock();
+pthread_rwlock_wrlock();
+pthread_rwlock_unlock();
+pthread_rwlock_destroy();
+
+pthread_rwlock_tryrdlock();
+pthread_rwlock_trywrlock();
+
+```
+
+
+
+### 条件变量 
+
+本身不是锁，但通常结合锁（mutex）来使用
+
+```c++
+pthread_cond_t cond;
+//初始化条件变量
+pthread_cond_init(&cond,NULL);					//动态初始化
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;	  //静态初始化
+
+int pthread_cond_init();
+int pthread_cond_wait();
+int pthread_cond_timedwait();
+int pthread_cond_destroy();
+int pthread_cond_signal();
+int pthread_cond_broadcast();
+```
+
+```c++
+//template
+//条件变量实现生产者消费者模型
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+struct msg{
+	int num;
+	struct msg *next;
+};
+struct msg *head = NULL;
+
+void terror(int ret,const char *str){
+	if(ret!=0){
+		cerr<<str<<"："<<strerror(ret)<<endl;
+		pthread_exit(NULL);
+	}
+}
+void *producer(void *arg){
+	while (1)
+	{
+		struct msg *m = (struct msg*)malloc(sizeof(struct msg));
+
+		pthread_mutex_lock(&mutex);
+		m->next = head;
+		m->num = rand()%1000+1;
+		head = m;
+		cout<<"*****producer make "<<m->num<<endl;
+		pthread_mutex_unlock(&mutex);
+		pthread_cond_signal(&cond);
+
+		sleep(rand()%3);
+	}
+}
+void *consumer(void *arg){
+	while (1)
+	{
+		pthread_mutex_lock(&mutex);
+		while(head == NULL){
+			pthread_cond_wait(&cond,&mutex);//1.阻塞等待条件变量，解锁。2.返回时，重写加锁
+		}
+		//模拟消费
+		struct msg *m;
+		m = head;
+		head = m->next;
+		cout<<"=====consumer use "<<m->num<<endl;
+		pthread_mutex_unlock(&mutex);
+
+		free(m);
+		sleep(rand()%3);
+	}	
+}
+int main(){
+	pthread_t pid,cid;
+	srand(time(NULL));
+
+	int ret = pthread_create(&pid,NULL,producer,NULL);
+	terror(ret,"pthread_create error");
+	ret = pthread_create(&cid,NULL,consumer,NULL);
+	terror(ret,"pthread_create error");
+
+	pthread_join(pid,NULL);
+	pthread_join(cid,NULL);
+
+	return 0;
+}
+```
+
+
+
+### 信号量
+
+```c++
+sem_t sem;
+int sem_init();
+int sem_destroy();
+int sem_wait();
+int sem_trywait();
+int sem_timedwait();
+int sem_post();
+```
+
+
+
+
+
 # 进程线程对比
 
 | 线程             | 进程               |
@@ -1622,3 +1917,4 @@ pthread_attr_destory(&attr);							     //销毁线程属性
 
 
 
+ 
