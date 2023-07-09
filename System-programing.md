@@ -815,6 +815,20 @@ struct dirent{
 perror("xxx error");
 ```
 
+## template
+
+```c
+//process template
+pid_t pid;
+int i = 0;
+
+pid = fork();
+if(pid<0){//error
+}else if(pid == 0){//子进程
+}else{//主进程
+}
+```
+
 
 
 ## 内存映射
@@ -1544,6 +1558,84 @@ g++ hello.cpp -o hello -lpthread
 
 
 
+## template
+
+```c
+//thread template
+struct student{
+    int no;
+    char name[32];
+};
+void *callback(void *arg){
+    //法1	两处法1配套使用
+    struct student *stu;
+    stu = malloc(sizeof(stu));
+    //法2	两处法2配套使用
+    //struct student *stu = (struct student *)arg;
+    stu->no = 666;
+    strcpy(stu->name,"alex");
+    return (void*)stu;
+}
+int main(){
+    pthread_t tid;
+    struct student *rstu,stu;
+    //法1
+    int ret = pthread_create(&tid,NULL,callback,NULL);
+    //法2
+    //int ret = pthread_create(&tid,NULL,callback,(void*)&stu);
+    ret = pthread_join(tid,(void**)&rstu);
+    cout<<"child thread return with no="<<rstu->no<<", name="<<rstu->name<<endl;
+    pthread_exit(NULL);
+}
+
+
+```
+
+```c
+//简洁版
+void *callback(void *arg){
+	int num = 66;
+	return (void *)num;
+}
+int main(){
+	pthread_t tid;
+	int ret;
+
+	pthread_create(&tid,NULL,*callback,NULL);
+	pthread_join(tid,(void **)&ret);
+	cout<<"ret = "<<ret<<endl;
+	return 0;
+}
+//复杂版
+struct student{
+	int no;
+	char name[32];
+};
+void *callback(void *arg){
+	struct student *stu;
+	stu = new struct student;
+
+	stu->no = 1;
+	strcpy(stu->name,"alex");
+	return (void *)stu;
+}
+int main(){
+	pthread_t tid;
+	int ret;
+	struct student *rstu;
+
+	pthread_create(&tid,NULL,*callback,NULL);
+	pthread_join(tid,(void **)&rstu);
+	cout<<"ret = "<<rstu->no<<" "<<rstu->name<<endl;
+	delete rstu;
+	return 0;
+}
+```
+
+
+
+
+
 ## 三级映射
 
 
@@ -1606,7 +1698,7 @@ pthread_t pthread_self(void);
 args:
 	tid：返回新创建的子线程id
 	attr：线程属性，传NULL使用默认属性
-	start_rountn：子线程回调函数
+	start_rountn：子线程回调函数。     void* fun(void*){}
 	arg：回调函数的参数。没有填NULL
 return：
 	success：0
@@ -1897,8 +1989,6 @@ int sem_trywait();
 int sem_timedwait();
 int sem_post();
 ```
-
-
 
 
 
